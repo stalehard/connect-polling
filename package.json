@@ -1,0 +1,7 @@
+{
+    "name": "rbac-server",
+    "version": "0.0.1",
+    "dependencies": {
+        "pg": "3.4.1"
+    }
+}
