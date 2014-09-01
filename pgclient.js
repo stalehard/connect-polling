@@ -1,12 +1,13 @@
 var pg = require('pg');
-pg.defaults.poolSize = 50;
+pg.defaults.poolSize = 200;
 
 module.exports = Connect;
 
 function Connect(connString) {
     this._connString = connString;
     this._isRun = false;
-    this._maxQueryCount = 2;
+    this._maxQueryCount = 10;
+    this._worked = false;
 
     this._emitter  =  new (require('events').EventEmitter);
     var self = this;
@@ -24,6 +25,10 @@ function Connect(connString) {
     });
 
     this._emitter.on('maxCount', function(message) {
+        self._setMax = true;
+    });
+
+    this._emitter.on('minCount', function(message) {
 
     });
 
@@ -94,7 +99,12 @@ Connect.prototype.maxQueryCount = function (count) {
 };
 
 Connect.prototype._nextTick = function() {
+    if(this._worked) {
+        return;
+    }
+
     while(this._isRun && this._arrayQuery.length>0) {
+        this._worked = true;
         var el = this._arrayQuery.shift();
         this._client.query(el.query, el.params, function(err, result) {
             if(err) {
@@ -103,4 +113,12 @@ Connect.prototype._nextTick = function() {
             el.callback(null, result);
         })
     }
+
+    this._worked = false;
+
+    if(this._setMax == true && this._arrayQuery.length==0) {
+        this._emitter.emit('minCount', 'in queue empty');
+        this._setMax = false;
+    }
+
 };
