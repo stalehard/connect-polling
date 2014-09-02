@@ -16,9 +16,11 @@ GPSconnect.prototype.priority = 5;
 
 
 function Balanser(minCountConnect, maxCountConnect, arrayTybes) {
-    this._maxQueryCount = maxCountConnect;
+    this._maxCountConnect = maxCountConnect;
     this._minCountConnect = minCountConnect;
     this._connectArray = [];
+    this._closedConnect = [];
+    this._syncAdd = false;
     this._emitter = new (require('events').EventEmitter);
 
     this._emitter.on('ready', function() {
@@ -36,7 +38,7 @@ Balanser.prototype._init = function() {
     var i=0;
     var cycle = function() {
         i++;
-        if(i<self._minCountConnect+1) {
+        if(i<self._minCountConnect) {
             self._addNewConnect(cycle);
         }   else {
             self._emitter.emit('ready');
@@ -47,16 +49,53 @@ Balanser.prototype._init = function() {
 };
 
 Balanser.prototype._addNewConnect = function(cb) {
-    //
+    if(this._syncAdd) {
+        return;
+    }
 
-
+    this._syncAdd = true;
     var self = this;
+
     var connect = new GPSconnect(connString);
     connect.on('open', function() {
+        connect.on('maxCount', function() {
+            if(self._connectArray.length < self._maxCountConnect) {
+                self._addNewConnect();
+            }
+            console.log('this connect has max count');
+        });
+        connect.on('minCount', function() {
+//            self._removeConnect();
+            console.log('this connect has min count');
+        });
+
         self._connectArray.push(connect);
-        cb();
+        self._syncAdd = false;
+        if(cb) {
+            cb();
+        }
     });
 };
+
+Balanser.prototype._removeConnect = function() {
+    var connect = this._connectArray.pop();
+    this._closedConnect.push(connect);
+};
+
+Balanser.prototype._distribution = function() {
+    for (var i=0;i<this._connectArray.length;i++) {
+        if( this.activQuery/this._connectArray.length > this._connectArray[i].queryQueue().length )
+            break;
+    }
+    this._cursor = i;
+    var connect = this._connectArray[this._cursor];
+    this._cursor++;
+    if(this._cursor==this._connectArray.length) {
+        this._cursor = 0;
+    }
+    return connect;
+};
+
 
 Balanser.prototype.on = function(typeEvent, func) {
     this._emitter.addListener(typeEvent, func);
@@ -65,71 +104,44 @@ Balanser.prototype.on = function(typeEvent, func) {
 Balanser.prototype.addQuery = function(tube, query, params, cb) {
     this.activQuery++;
     var self = this;
-    var connect = this._connectArray[this._cursor];
 
+    var connect = self._distribution();
     var wrappCb = function() {
         self.activQuery--;
         cb.apply(this, arguments);
     };
 
     connect.addQuery(query, params, wrappCb);
-    this._cursor++;
-
     connect.start();
+
+//    setTimeout(function() {
+//        connect.start();
+//    }, 2000);
 };
 
 var balancer = new Balanser(10,100, []);
 balancer.on('ready', function() {
 
-    balancer.addQuery('gps', 'select * from test', [], function(err, result) {
-        console.log(result);
-    });
-
-
-    balancer.addQuery('gps', 'select * from test', [], function(err, result) {
-        console.log(result);
-    });
-
-
-    balancer.addQuery('gps', 'select * from test', [], function(err, result) {
-        console.log(result);
-    });
-
-    console.log(balancer.activQuery);
+    var y=0;
+    for(var i=0;i<10; i++) {
+        balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
+            if(err) console.log(err);
+            console.log(y++)
+        });
+    }
 
     setTimeout(function() {
-        console.log(balancer.activQuery);
-    }, 2000);
+        for(var i=0;i<balancer._connectArray.length;i++) {
+            console.log(balancer._connectArray[i].queryQueue().length);
+        }
+    },1000)
+
+
 
 });
 
 
 
-//var gps = new GPSconnect(connString);
-//gps.on('open', function() {
-//    gps.addQuery('select * from test', [], function(err, result) {
-//        console.log(result);
-//    });
-//
-//    gps.addQuery('select * from test', [], function(err, result) {
-//        console.log(result);
-//    });
-//
-//    gps.addQuery('select  from test', [], function(err, result) {
-//        if(err) console.log(err);
-//        console.log(result);
-//    });
-//
-////    gps.start();
-//});
-//
-//gps.on('maxCount', function(message) {
-//    console.log(message);
-//});
-//
-//gps.on('minCount', function(message) {
-//    console.log(message);
-//});
 
 
 
