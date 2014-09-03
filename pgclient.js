@@ -6,8 +6,9 @@ module.exports = Connect;
 function Connect(connString) {
     this._connString = connString;
     this._isRun = false;
-    this._maxQueryCount = 1;
+    this._maxQueryCount = 10;
     this._worked = false;
+    this._queryCount = 0;
 
     this._emitter  =  new (require('events').EventEmitter);
     var self = this;
@@ -60,6 +61,10 @@ Connect.prototype.stop = function() {
     this._isRun = false;
 };
 
+Connect.prototype.isFull = function() {
+    return this._setMax;
+};
+
 Connect.prototype.close = function () {
     if(this._done) {
         this._emitter.emit('close');
@@ -82,8 +87,9 @@ Connect.prototype.addQuery = function (query, params, cb) {
         return this._emitter.emit('error', new Error('not valid argument'));
     }
 
+    this._queryCount++;
     this._arrayQuery.push({ query: query, params: params, callback: cb });
-    if(this._arrayQuery.length>this._maxQueryCount) {
+    if(this._queryCount>this._maxQueryCount) {
         this._emitter.emit('maxCount', 'in queue added too many requests, the waiting time increases');
     }
 
@@ -98,7 +104,12 @@ Connect.prototype.maxQueryCount = function (count) {
     }
 };
 
+Connect.prototype.queryCount = function () {
+    return this._queryCount;
+};
+
 Connect.prototype._nextTick = function() {
+    var self = this;
     if(this._worked) {
         return;
     }
@@ -106,19 +117,21 @@ Connect.prototype._nextTick = function() {
     while(this._isRun && this._arrayQuery.length>0) {
         this._worked = true;
         var el = this._arrayQuery.shift();
+
         this._client.query(el.query, el.params, function(err, result) {
+            self._queryCount--;
             if(err) {
                 return el.callback(err);
             }
             el.callback(null, result);
+
+            if(self._setMax == true && self._queryCount==0) {
+                self._emitter.emit('minCount', 'in queue empty');
+                self._setMax = false;
+            }
+
         })
     }
 
     this._worked = false;
-
-    if(this._setMax == true && this._arrayQuery.length==0) {
-        this._emitter.emit('minCount', 'in queue empty');
-        this._setMax = false;
-    }
-
 };

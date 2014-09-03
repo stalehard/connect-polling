@@ -20,7 +20,8 @@ function Balanser(minCountConnect, maxCountConnect, arrayTybes) {
     this._minCountConnect = minCountConnect;
     this._connectArray = [];
     this._closedConnect = [];
-    this._syncAdd = false;
+    this._taskArray = [];
+    this._run = false;
     this._emitter = new (require('events').EventEmitter);
 
     this._emitter.on('ready', function() {
@@ -49,20 +50,12 @@ Balanser.prototype._init = function() {
 };
 
 Balanser.prototype._addNewConnect = function(cb) {
-    if(this._syncAdd) {
-        return;
-    }
-
-    this._syncAdd = true;
     var self = this;
 
     var connect = new GPSconnect(connString);
     connect.on('open', function() {
         connect.on('maxCount', function() {
-            if(self._connectArray.length < self._maxCountConnect) {
-                self._addNewConnect();
-            }
-            console.log('this connect has max count');
+//            console.log('this connect has max count');
         });
         connect.on('minCount', function() {
 //            self._removeConnect();
@@ -70,10 +63,7 @@ Balanser.prototype._addNewConnect = function(cb) {
         });
 
         self._connectArray.push(connect);
-        self._syncAdd = false;
-        if(cb) {
-            cb();
-        }
+        cb();
     });
 };
 
@@ -82,20 +72,53 @@ Balanser.prototype._removeConnect = function() {
     this._closedConnect.push(connect);
 };
 
-Balanser.prototype._distribution = function() {
-    for (var i=0;i<this._connectArray.length;i++) {
-        if( this.activQuery/this._connectArray.length > this._connectArray[i].queryQueue().length )
+Balanser.prototype._cycle = function(pos) {
+    for (var i=pos;i<this._connectArray.length;i++) {
+        if( !(this._connectArray[i].isFull()) )
             break;
     }
-    this._cursor = i;
-    var connect = this._connectArray[this._cursor];
-    this._cursor++;
-    if(this._cursor==this._connectArray.length) {
-        this._cursor = 0;
-    }
-    return connect;
+    return i;
 };
 
+Balanser.prototype._next = function(connect, el) {
+    connect.addQuery(el.query, el.params, el.cb);
+    connect.start();
+    this._distribution();
+};
+
+Balanser.prototype._distribution = function() {
+    if(this._taskArray.length>0) {
+        var el = this._taskArray.shift();
+        this._cursor = this._cycle(this._cursor);
+
+        var self = this;
+        if(this._cursor<this._connectArray.length) {
+            var connect = this._connectArray[this._cursor];
+            this._next(connect, el);
+            this._cursor++;
+        }   else {
+            this._cursor = this._cycle(0);
+            if(this._cursor<this._connectArray.length) {
+                var connect = this._connectArray[this._cursor];
+                this._next(connect, el);
+                this._cursor++;
+            } else if(this._connectArray.length<this._maxCountConnect) {
+                self._addNewConnect(function() {
+                    self._cursor = self._connectArray.length-1;
+                    var connect = self._connectArray[self._cursor];
+                    self._next(connect, el);
+                });
+            } else {
+                this._cursor = 0;
+                var connect = this._connectArray[this._cursor];
+                this._next(connect, el);
+                this._cursor++;
+            }
+        }
+    }   else {
+        this._run = false;
+    }
+};
 
 Balanser.prototype.on = function(typeEvent, func) {
     this._emitter.addListener(typeEvent, func);
@@ -105,39 +128,35 @@ Balanser.prototype.addQuery = function(tube, query, params, cb) {
     this.activQuery++;
     var self = this;
 
-    var connect = self._distribution();
     var wrappCb = function() {
         self.activQuery--;
         cb.apply(this, arguments);
     };
 
-    connect.addQuery(query, params, wrappCb);
-    connect.start();
-
-//    setTimeout(function() {
-//        connect.start();
-//    }, 2000);
+    this._taskArray.push({ query: query, params: params, cb: wrappCb });
+    if(!this._run) {
+        this._run = true;
+        this._distribution();
+    }
 };
 
 var balancer = new Balanser(10,100, []);
 balancer.on('ready', function() {
 
     var y=0;
-    for(var i=0;i<10; i++) {
+    var time = +new Date();
+    for(var i=0;i<1000; i++) {
         balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
             if(err) console.log(err);
-            console.log(y++)
+            y++;
+//            console.log(result.rows);
+            if(y==998) {
+                console.log(balancer._connectArray.length)
+                console.log(+new Date()-time);
+            }
+
         });
     }
-
-    setTimeout(function() {
-        for(var i=0;i<balancer._connectArray.length;i++) {
-            console.log(balancer._connectArray[i].queryQueue().length);
-        }
-    },1000)
-
-
-
 });
 
 
