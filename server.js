@@ -54,22 +54,20 @@ Balanser.prototype._addNewConnect = function(cb) {
 
     var connect = new GPSconnect(connString);
     connect.on('open', function() {
-        connect.on('maxCount', function() {
-//            console.log('this connect has max count');
-        });
-        connect.on('minCount', function() {
-//            self._removeConnect();
-            console.log('this connect has min count');
-        });
+//        connect.on('maxCount', function() {
+//            console.log(this);
+////            console.log('this connect has max count');
+//        });
+
+//        connect.on('minCount', function() {
+////            self._removeConnect();
+//            console.log('this connect has min count');
+//            console.log(this);
+//        });
 
         self._connectArray.push(connect);
         cb();
     });
-};
-
-Balanser.prototype._removeConnect = function() {
-    var connect = this._connectArray.pop();
-    this._closedConnect.push(connect);
 };
 
 Balanser.prototype._cycle = function(pos) {
@@ -109,10 +107,18 @@ Balanser.prototype._distribution = function() {
                     self._next(connect, el);
                 });
             } else {
-                this._cursor = 0;
+                for (var i=0;i<this._connectArray.length;i++) {
+                    if( this.activQuery/this._connectArray.length > this._connectArray[i].queryCount() ) {
+                        break;
+                    }
+                }
+                if(i==this._connectArray.length) {
+                    i = 0;
+                }
+                this._cursor = i;
+
                 var connect = this._connectArray[this._cursor];
                 this._next(connect, el);
-                this._cursor++;
             }
         }
     }   else {
@@ -124,10 +130,35 @@ Balanser.prototype.on = function(typeEvent, func) {
     this._emitter.addListener(typeEvent, func);
 };
 
+Balanser.prototype._removeLoad = function() {
+    var self = this;
+
+    var temp = this._connectArray[0].maxQueryCount().toFixed();
+    var currentCount = (this.activQuery/temp < this._minCountConnect) ? this._minCountConnect : temp;
+
+    if(currentCount+5< this._connectArray.length ) {
+        while( this._connectArray.length  != currentCount + 5 ) {
+            var poppedConnect = this._connectArray.pop();
+            if(poppedConnect.queryCount()==0) {
+                poppedConnect.close();
+            }   else {
+                poppedConnect.index = self._closedConnect.length;
+                poppedConnect.on('minCount', function() {
+                    poppedConnect.close();
+                    self._closedConnect.slice(poppedConnect.index, 1);
+                    console.log('this connect has min count');
+                });
+                self._closedConnect.push(poppedConnect);
+            }
+        }
+    }
+};
+
 Balanser.prototype.addQuery = function(tube, query, params, cb) {
     this.activQuery++;
     var self = this;
 
+    this._removeLoad();
     var wrappCb = function() {
         self.activQuery--;
         cb.apply(this, arguments);
@@ -150,9 +181,17 @@ balancer.on('ready', function() {
             if(err) console.log(err);
             y++;
 //            console.log(result.rows);
-            if(y==998) {
+            if(y==1000) {
                 console.log(balancer._connectArray.length)
                 console.log(+new Date()-time);
+
+
+
+                balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
+                    if(err) console.log(err);
+                    console.log(result.rows);
+                    console.log(balancer._connectArray.length)
+                });
             }
 
         });

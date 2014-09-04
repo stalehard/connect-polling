@@ -125,7 +125,7 @@ Connect.prototype._nextTick = function() {
             }
             el.callback(null, result);
 
-            if(self._setMax == true && self._queryCount==0) {
+            if(self._queryCount==0) {
                 self._emitter.emit('minCount', 'in queue empty');
                 self._setMax = false;
             }
