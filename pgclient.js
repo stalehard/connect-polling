@@ -4,81 +4,73 @@ pg.defaults.poolSize = 200;
 module.exports = Connect;
 
 function Connect(connString) {
-    this._connString = connString;
-    this._isRun = false;
-    this._maxQueryCount = 10;
-    this._worked = false;
-    this._queryCount = 0;
+    this._connString = connString;                                   // сохраняем параметры в свойстве объекта
+    this._isRun = false;                                             // свойство отвечающее, за запуск обработки запросов
+    this._maxQueryCount = 10;                                        // максимальное количество запросов помещенных в сокет, после которого будет вызвано событие ""
+    this._worked = false;                                            //
+    this._queryCount = 0;                                            // свойство хранящее общее количество запросов
 
-    this._emitter  =  new (require('events').EventEmitter);
-    var self = this;
+    this._emitter  =  new (require('events').EventEmitter);          // "движок" класса
+    var self = this;                                                 // делаем "селфи" :)
 
-    this._emitter.on('open', function() {
-        self._arrayQuery = [];
+    this._emitter.on('open', function() {                            // на открытие коннекта создаем обработчик "open"
+        self._arrayQuery = [];                                       // в котором регистрируем массив коннектов
     });
 
-    this._emitter.on('close', function() {
-
+    this._emitter.on('error', function(err) {                        // на событие ошибки будет сгенерирована ошибка, которая если не навесить обработчик,
+        throw err;                                                   // повалит выполнение скрипта
     });
 
-    this._emitter.on('error', function(err) {
-        throw err;
-    });
-
-    this._emitter.on('maxCount', function(message) {
+    this._emitter.on('maxCount', function(message) {                 // на событие достижения лимита этого коннекта, пометим его флагом
         self._setMax = true;
     });
 
-    this._emitter.on('minCount', function(message) {
-
-    });
-
-    pg.connect(this._connString, function(err, client, done) {
-        if (err) {
-            console.error(err);
+    pg.connect(this._connString, function(err, client, done) {       // при создании экземпляра класса открываем коннект до базы, здесь может быть открытие любого
+        if (err) {                                                   // коннекта, который представляет сам по себе net.Socket
+            return self._emitter.emit('error', err);
         }
 
-        self._client = client;
-        self._done = done;
-        self._emitter.emit('open');
+        self._client = client;                                       // запишем в "внутреннее" свойство ссылку на клиент, который общается с базой
+        self._done = done;                                           // "мягкое закрытие" клиента
+        self._emitter.emit('open');                                  // вызываем событие готовности (передаем событие далее по цепочке)
     });
 }
 
-Connect.prototype.on = function(typeEvent, func) {
+Connect.prototype.on = function(typeEvent, func) {                   // метод, который предоставляет функционал по "навешиванию" обработчиков на события
     if(typeEvent == 'error') {
-        this._emitter.removeAllListeners('error');
+        this._emitter.removeAllListeners('error');                   // если это обработчик на ошибки подменяем стандартный обработчик пользовательским
     }
 
     this._emitter.addListener(typeEvent, func);
 };
 
-Connect.prototype.start = function() {
+Connect.prototype.start = function() {                               // метод, которые запускает работу по обработке запросов
     this._isRun = true;
     this._nextTick();
 };
 
-Connect.prototype.stop = function() {
+Connect.prototype.stop = function() {                                // метод, которые останавливает работу по обработке запросов
     this._isRun = false;
 };
 
-Connect.prototype.isFull = function() {
+Connect.prototype.isFull = function() {                              // метод, возвращающий состоянии коннекта (заполнен оли он)
     return this._setMax;
 };
 
-Connect.prototype.close = function () {
-    if(this._done) {
+Connect.prototype.close = function () {                              // метод, закрывающий мягко коннект (т.е. если на коннекте висят запросы, программа дождется их
+    if(this._done) {                                                 // выполнения и закроет коннект)
         this._emitter.emit('close');
         this._done();
     } else {
-        console.error('connect is not active');
+        console.error('connect is not active');                      // коннект по каким-то причинам еще не открыт
     }
 };
 
-Connect.prototype.queryQueue = function () {
+Connect.prototype.queryQueue = function () {                         // метод, возвращающий массив обрабатываемых запросов
     return this._arrayQuery;
 };
 
-Connect.prototype.addQuery = function (query, params, cb) {
+Connect.prototype.addQuery = function (query, params, cb) {          // главный рабочий метод класса, добавление запроса - в качестве параметров зам запрос в виде строки, параметры запроса, каллбэк ена завершении запроса
     if(!(typeof query == 'string')) {
         return this._emitter.emit('error', new Error('not valid query'));
     }
@@ -96,7 +88,7 @@ Connect.prototype.addQuery = function (query, params, cb) {
     this._nextTick();
 };
 
-Connect.prototype.maxQueryCount = function (count) {
+Connect.prototype.maxQueryCount = function (count) {                  // метод по манипулированию максимальным количеством запросов в коннекте
     if(count) {
         this._maxQueryCount = count;
     } else {
