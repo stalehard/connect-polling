@@ -4,40 +4,27 @@ var util = require('util');
 var conn =  config;
 var connString = util.format("pg://%s:%s@%s:%d/%s", conn.user, conn.password, conn.host, conn.port, conn.database);
 
-var Connect = require('./pgclient');
+var GPSconnect = require('./pgclient');
 
-function GPSconnect(connString) {
-    Connect.apply(this, arguments);
+function Balanser(minCountConnect, maxCountConnect, arrayTybes) {                                               // конструктор класса балансировщика, который будет распределять запросы
+    this._maxCountConnect = maxCountConnect;                                                                    // записываем в свойство максимальный предел открытых коннектов до базы
+    this._minCountConnect = minCountConnect;                                                                    // записываем в свойство минимальный предел открытых коннектов до базы
+    this._connectArray = [];                                                                                    // массив коннектов
+    this._closedConnect = [];                                                                                   // закрываемые коннекты
+    this._taskArray = [];                                                                                       // массив задач
+    this._run = false;                                                                                          // служебный флаг
+    this._emitter = new (require('events').EventEmitter);                                                       // движок класса
+
+    this._init();                                                                                               // запускаем инициализацию
 }
 
-GPSconnect.prototype = Object.create(Connect.prototype);
-GPSconnect.prototype.priority = 5;
-
-
-
-function Balanser(minCountConnect, maxCountConnect, arrayTybes) {
-    this._maxCountConnect = maxCountConnect;
-    this._minCountConnect = minCountConnect;
-    this._connectArray = [];
-    this._closedConnect = [];
-    this._taskArray = [];
-    this._run = false;
-    this._emitter = new (require('events').EventEmitter);
-
-    this._emitter.on('ready', function() {
-
-    });
-
-    this._init();
-}
-
-Balanser.prototype._init = function() {
-    this._cursor = 0;
+Balanser.prototype._init = function() {                                                                         // метод инициализации класса, открывающий коннекты
+    this._cursor = 0;                                                                                           // последовательно, один за другим
     this.activQuery = 0;
     var self = this;
 
     var i=0;
-    var cycle = function() {
+    var cycle = function() {                                                                                    // рекурсивный вызов функции, добавляющей новый коннект
         i++;
         if(i<self._minCountConnect) {
             self._addNewConnect(cycle);
@@ -49,28 +36,17 @@ Balanser.prototype._init = function() {
     this._addNewConnect(cycle);
 };
 
-Balanser.prototype._addNewConnect = function(cb) {
+Balanser.prototype._addNewConnect = function(cb) {                                                              // собственно метод, открывающий соединение, используем класс коннекта
     var self = this;
 
     var connect = new GPSconnect(connString);
     connect.on('open', function() {
-//        connect.on('maxCount', function() {
-//            console.log(this);
-////            console.log('this connect has max count');
-//        });
-
-//        connect.on('minCount', function() {
-////            self._removeConnect();
-//            console.log('this connect has min count');
-//            console.log(this);
-//        });
-
         self._connectArray.push(connect);
         cb();
     });
 };
 
-Balanser.prototype._cycle = function(pos) {
+Balanser.prototype._cycle = function(pos) {                                                                     // метод, по проверке на "загруженности" коннекта
     for (var i=pos;i<this._connectArray.length;i++) {
         if( !(this._connectArray[i].isFull()) )
             break;
@@ -78,19 +54,19 @@ Balanser.prototype._cycle = function(pos) {
     return i;
 };
 
-Balanser.prototype._next = function(connect, el) {
+Balanser.prototype._next = function(connect, el) {                                                              // метод, заполняющий коннект запросами
     connect.addQuery(el.query, el.params, el.cb);
     connect.start();
     this._distribution();
 };
 
-Balanser.prototype._distribution = function() {
-    if(this._taskArray.length>0) {
-        var el = this._taskArray.shift();
-        this._cursor = this._cycle(this._cursor);
+Balanser.prototype._distribution = function() {                                                                 // главный метод класса - распределяет запросы между коннектами
+    if(this._taskArray.length>0) {                                                                              // распределение проходит по принципу "Round-robin"
+        var el = this._taskArray.shift();                                                                       // с проверкой на загруженность коннекта. Это нужно в случае, если какой то запрос оказался "тяжелым",
+        this._cursor = this._cycle(this._cursor);                                                               // чтобы снять нагрузку с этого коннекта и перераспределить запросы на другие коннекты
 
         var self = this;
-        if(this._cursor<this._connectArray.length) {
+        if(this._cursor<this._connectArray.length) {                                                            // код оформлен конечно криво, надеюсь в скором времени поправить
             var connect = this._connectArray[this._cursor];
             this._next(connect, el);
             this._cursor++;
@@ -126,27 +102,26 @@ Balanser.prototype._distribution = function() {
     }
 };
 
-Balanser.prototype.on = function(typeEvent, func) {
+Balanser.prototype.on = function(typeEvent, func) {                                                             // метод, который предоставляет функционал по "навешиванию" обработчиков на события
     this._emitter.addListener(typeEvent, func);
 };
 
-Balanser.prototype._removeLoad = function() {
-    var self = this;
+Balanser.prototype._removeLoad = function() {                                                                   // метод, вызываемый для проверки количества открытых коннектов, и если необходимости в таком количестве нет
+    var self = this;                                                                                            // "лишние" коннекты исключается из системы распределения
 
     var temp = this._connectArray[0].maxQueryCount().toFixed();
     var currentCount = (this.activQuery/temp < this._minCountConnect) ? this._minCountConnect : temp;
 
-    if(currentCount+5< this._connectArray.length ) {
-        while( this._connectArray.length  != currentCount + 5 ) {
+    if(currentCount< this._connectArray.length ) {
+        while( this._connectArray.length  != currentCount  ) {
             var poppedConnect = this._connectArray.pop();
             if(poppedConnect.queryCount()==0) {
                 poppedConnect.close();
             }   else {
                 poppedConnect.index = self._closedConnect.length;
-                poppedConnect.on('minCount', function() {
+                poppedConnect.on('drain', function() {
                     poppedConnect.close();
                     self._closedConnect.slice(poppedConnect.index, 1);
-                    console.log('this connect has min count');
                 });
                 self._closedConnect.push(poppedConnect);
             }
@@ -154,7 +129,7 @@ Balanser.prototype._removeLoad = function() {
     }
 };
 
-Balanser.prototype.addQuery = function(tube, query, params, cb) {
+Balanser.prototype.addQuery = function(tube, query, params, cb) {                                               // собственно метод, который предоставляет вход-трубу, через который добавляются все запросы
     this.activQuery++;
     var self = this;
 

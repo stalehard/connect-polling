@@ -1,6 +1,6 @@
 {
-    "name": "rbac-server",
-    "version": "0.0.1",
+    "name": "balanser",
+    "version": "0.1.0",
     "dependencies": {
         "pg": "3.4.1"
     }
