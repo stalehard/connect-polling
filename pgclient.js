@@ -8,6 +8,7 @@ function Connect(connString) {
     this._isRun = false;                                                                                // свойство отвечающее, за запуск обработки запросов
     this._maxQueryCount = 10;                                                                           // максимальное количество запросов помещенных в сокет, после которого будет вызвано событие ""
     this._worked = false;                                                                               // служебное свойство, используемое в методе _nextTick
+    this._queryCount = 0;                                                                               // количество запросов, висящих на коннекте
 
     this._emitter  =  new (require('events').EventEmitter);                                             // "движок" класса
     var self = this;                                                                                    // делаем "селфи" :)
@@ -78,8 +79,10 @@ Connect.prototype.addQuery = function (query, params, cb) {                     
         return this._emitter.emit('error', new Error('not valid argument'));
     }
 
+    this._queryCount++;
     this._arrayQuery.push({ query: query, params: params, callback: cb });
-    if(this._arrayQuery.length>this._maxQueryCount) {
+
+    if(this._queryCount > this._maxQueryCount) {
         this._emitter.emit('maxCount', 'in queue added too many requests, the waiting time increases');
     }
 
@@ -95,7 +98,7 @@ Connect.prototype.maxQueryCount = function (count) {                            
 };
 
 Connect.prototype.queryCount = function () {                                                            // возвращает количество обрабатываемых запросов
-    return this._arrayQuery.length;
+    return this._queryCount;
 };
 
 Connect.prototype._nextTick = function() {                                                              // внутренний метод класса, ответственный за выполнение запросов,
@@ -109,12 +112,13 @@ Connect.prototype._nextTick = function() {                                      
         var el = this._arrayQuery.shift();
 
         this._client.query(el.query, el.params, function(err, result) {                                 // здесь используется синтаксис библиотеки pg, к которой мы привязаны
+            self._queryCount--;
             if(err) {
                 return el.callback(err);
             }
             el.callback(null, result);
 
-            if(self._arrayQuery.length==0) {
+            if(self._queryCount==0) {
                 self._emitter.emit('drain');
                 self._setMax = false;
             }

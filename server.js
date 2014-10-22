@@ -46,7 +46,7 @@ Balanser.prototype._addNewConnect = function(cb) {                              
     });
 };
 
-Balanser.prototype._cycle = function(pos) {                                                                     // метод, по проверке на "загруженности" коннекта
+Balanser.prototype._cycle = function(pos) {                                                                     // метод, по проверке на "загруженности" коннекта и во
     for (var i=pos;i<this._connectArray.length;i++) {
         if( !(this._connectArray[i].isFull()) )
             break;
@@ -64,19 +64,21 @@ Balanser.prototype._distribution = function() {                                 
     if(this._taskArray.length>0) {                                                                              // распределение проходит по принципу "Round-robin"
         var el = this._taskArray.shift();                                                                       // с проверкой на загруженность коннекта. Это нужно в случае, если какой то запрос оказался "тяжелым",
         this._cursor = this._cycle(this._cursor);                                                               // чтобы снять нагрузку с этого коннекта и перераспределить запросы на другие коннекты
-
         var self = this;
+
         if(this._cursor<this._connectArray.length) {                                                            // код оформлен конечно криво, надеюсь в скором времени поправить
             var connect = this._connectArray[this._cursor];
             this._next(connect, el);
             this._cursor++;
+
         }   else {
             this._cursor = this._cycle(0);
+
             if(this._cursor<this._connectArray.length) {
                 var connect = this._connectArray[this._cursor];
                 this._next(connect, el);
                 this._cursor++;
-            } else if(this._connectArray.length<this._maxCountConnect) {
+            } else if( this._connectArray.length<this._maxCountConnect) {
                 self._addNewConnect(function() {
                     self._cursor = self._connectArray.length-1;
                     var connect = self._connectArray[self._cursor];
@@ -157,16 +159,19 @@ balancer.on('ready', function() {
             y++;
 //            console.log(result.rows);
             if(y==1000) {
-                console.log(balancer._connectArray.length)
+                console.log(balancer._connectArray.length);
                 console.log(+new Date()-time);
-
 
 
                 balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
                     if(err) console.log(err);
-                    console.log(result.rows);
-                    console.log(balancer._connectArray.length)
+
+                    console.log(balancer._connectArray.length);
+
+
                 });
+
+
             }
 
         });
