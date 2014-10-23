@@ -4,74 +4,74 @@ pg.defaults.poolSize = 200;
 module.exports = Connect;
 
 function Connect(connString) {
-    this._connString = connString;                                                                      // сохраняем параметры в свойстве объекта
-    this._isRun = false;                                                                                // свойство отвечающее, за запуск обработки запросов
-    this._maxQueryCount = 10;                                                                           // максимальное количество запросов помещенных в сокет, после которого будет вызвано событие ""
-    this._worked = false;                                                                               // служебное свойство, используемое в методе _nextTick
-    this._queryCount = 0;                                                                               // количество запросов, висящих на коннекте
+    this._connString = connString;
+    this._isRun = false;
+    this._maxQueryCount = 100;
+    this._worked = false;
+    this._queryCount = 0;
 
-    this._emitter  =  new (require('events').EventEmitter);                                             // "движок" класса
-    var self = this;                                                                                    // делаем "селфи" :)
+    this._emitter  =  new (require('events').EventEmitter);
 
-    this._emitter.on('open', function() {                                                               // на открытие коннекта создаем обработчик "open"
-        self._arrayQuery = [];                                                                          // в котором регистрируем массив коннектов
+    var self = this;
+    this._emitter.on('open', function() {
+        self._arrayQuery = [];
     });
 
-    this._emitter.on('error', function(err) {                                                           // на событие ошибки будет сгенерирована ошибка, которая если не навесить обработчик,
-        throw err;                                                                                      // повалит выполнение скрипта
+    this._emitter.on('error', function(err) {
+        throw err;
     });
 
-    this._emitter.on('maxCount', function(message) {                                                    // на событие достижения лимита этого коннекта, пометим его флагом
+    this._emitter.on('maxCount', function(message) {
         self._setMax = true;
     });
 
-    pg.connect(this._connString, function(err, client, done) {                                          // при создании экземпляра класса открываем коннект до базы, здесь может быть открытие любого
-        if (err) {                                                                                      // коннекта, который представляет сам по себе net.Socket
+    pg.connect(this._connString, function(err, client, done) {
+        if (err) {
             return self._emitter.emit('error', err);
         }
 
-        self._client = client;                                                                          // запишем в "внутреннее" свойство ссылку на клиент, который общается с базой
-        self._done = done;                                                                              // "мягкое закрытие" клиента
-        self._emitter.emit('open');                                                                     // вызываем событие готовности (передаем событие далее по цепочке)
+        self._client = client;
+        self._done = done;
+        self._emitter.emit('open');
     });
 }
 
-Connect.prototype.on = function(typeEvent, func) {                                                      // метод, который предоставляет функционал по "навешиванию" обработчиков на события
+Connect.prototype.on = function(typeEvent, func) {
     if(typeEvent == 'error') {
-        this._emitter.removeAllListeners('error');                                                      // если это обработчик на ошибки подменяем стандартный обработчик пользовательским
+        this._emitter.removeAllListeners('error');
     }
 
     this._emitter.addListener(typeEvent, func);
 };
 
-Connect.prototype.start = function() {                                                                  // метод, которые запускает работу по обработке запросов
+Connect.prototype.start = function() {
     this._isRun = true;
     this._nextTick();
 };
 
-Connect.prototype.stop = function() {                                                                   // метод, которые останавливает работу по обработке запросов
+Connect.prototype.stop = function() {
     this._isRun = false;
 };
 
-Connect.prototype.isFull = function() {                                                                 // метод, возвращающий состоянии коннекта (заполнен оли он)
+Connect.prototype.isFull = function() {
     return this._setMax;
 };
 
-Connect.prototype.close = function () {                                                                 // метод, закрывающий мягко коннект (т.е. если на коннекте висят запросы, программа дождется их
-    if(this._done) {                                                                                    // выполнения и закроет коннект)
+Connect.prototype.close = function () {
+    if(this._done) {
         this._emitter.emit('close');
         this._done();
     } else {
-        console.error('connect is not active');                                                         // коннект по каким-то причинам еще не открыт
+        this._emitter.emit('error', new Error('connect is not active'));
     }
 };
 
-Connect.prototype.queryQueue = function () {                                                            // метод, возвращающий массив обрабатываемых запросов
+Connect.prototype.queryQueue = function () {
     return this._arrayQuery;
 };
 
-Connect.prototype.addQuery = function (query, params, cb) {                                             // главный рабочий метод класса - добавление запроса
-    if(!(typeof query == 'string')) {                                                                   // в качестве параметров зам запрос в виде строки, параметры запроса, коллбэк на завершении запроса
+Connect.prototype.addQuery = function (query, params, cb) {
+    if(!(typeof query == 'string')) {
         return this._emitter.emit('error', new Error('not valid query'));
     }
 
@@ -89,7 +89,7 @@ Connect.prototype.addQuery = function (query, params, cb) {                     
     this._nextTick();
 };
 
-Connect.prototype.maxQueryCount = function (count) {                                                    // метод по манипулированию максимальным количеством запросов в коннекте
+Connect.prototype.maxQueryCount = function (count) {
     if(count) {
         this._maxQueryCount = count;
     } else {
@@ -97,21 +97,21 @@ Connect.prototype.maxQueryCount = function (count) {                            
     }
 };
 
-Connect.prototype.queryCount = function () {                                                            // возвращает количество обрабатываемых запросов
+Connect.prototype.queryCount = function () {
     return this._queryCount;
 };
 
-Connect.prototype._nextTick = function() {                                                              // внутренний метод класса, ответственный за выполнение запросов,
-    var self = this;                                                                                    // в данном случае реализован вариант, когда все запросы сразу отправляются
-    if(this._worked) {                                                                                  // к базе, возможна реализация в случае с последовательным выполнением
-        return;                                                                                         // запросы хранятся во внутреннем буффере (массиве _arrayQuery)
-    }                                                                                                   // и отправляются к базе по мере выполнения предыдущего
+Connect.prototype._nextTick = function() {
+    var self = this;
+    if(this._worked) {
+        return;
+    }
 
     while(this._isRun && this._arrayQuery.length>0) {
         this._worked = true;
         var el = this._arrayQuery.shift();
 
-        this._client.query(el.query, el.params, function(err, result) {                                 // здесь используется синтаксис библиотеки pg, к которой мы привязаны
+        this._client.query(el.query, el.params, function(err, result) {
             self._queryCount--;
             if(err) {
                 return el.callback(err);
