@@ -13,9 +13,10 @@ function Balancer(minCountConnect, maxCountConnect) {
     this._closedConnect = [];
     this._taskArray = [];
     this._run = false;
-    this._emitter = new (require('events').EventEmitter);
     this._init();
 }
+
+Balancer.prototype = Object.create(require('events').EventEmitter.prototype);
 
 Balancer.prototype._init = function() {
     this._cursor = 0;
@@ -29,7 +30,7 @@ Balancer.prototype._init = function() {
         if(i<self._minCountConnect) {
             self._addNewConnect(cycle);
         }   else {
-            self._emitter.emit('ready');
+            self.emit('ready');
         }
     };
 
@@ -102,11 +103,6 @@ Balancer.prototype._distribution = function() {
     }   else {
         this._run = false;
     }
-};
-
-
-Balancer.prototype.on = function(typeEvent, func) {
-    this._emitter.addListener(typeEvent, func);
 };
 
 Balancer.prototype._removeLoad = function() {
