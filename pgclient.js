@@ -9,8 +9,9 @@ function Connect(connString) {
     this._maxQueryCount = 100;
     this._worked = false;
     this._queryCount = 0;
-    var self = this;
 
+
+    var self = this;
     this.on('open', function() {
         self._arrayQuery = [];
     });
@@ -19,9 +20,10 @@ function Connect(connString) {
         self._setMax = true;
     });
 
+
     pg.connect(this._connString, function(err, client, done) {
         if (err) {
-            return self._emitter.emit('error', err);
+            return self.emit('error', err);
         }
 
         self._client = client;
@@ -61,7 +63,6 @@ Connect.prototype.queryQueue = function () {
 Connect.prototype.addQuery = function (query, params, cb) {
     if(typeof query !== 'string') {
         return this.emit('error', new Error('not valid query'));
-
     }
 
     if( typeof params !== "object" || !(params instanceof Array) ) {
@@ -118,4 +119,3 @@ Connect.prototype._nextTick = function() {
 
     this._worked = false;
 };
-
