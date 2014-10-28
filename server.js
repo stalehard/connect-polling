@@ -15,10 +15,12 @@ function Balancer(minCountConnect, maxCountConnect) {
     this._closedConnect = {};
     this._taskArray = [];
     this._run = false;
+    this._regulation = true;
+    this._buffered = true;
     this._init();
 
-    this.on('_ready', function() {
-        self._status = 'ready';
+    this.on('calibrated', function() {
+        self._regulation = true;
         if(!self._run) {
             self._run = true;
             self._distribution();
@@ -40,7 +42,6 @@ Balancer.prototype._init = function() {
             self._addNewConnect(cycle);
         }   else {
             self.emit('ready');
-            self.emit('_ready');
         }
     };
 
@@ -73,23 +74,6 @@ Balancer.prototype._addNewConnect = function(cb) {
     });
 };
 
-Balancer.prototype._cycle = function(pos) {
-    for (var i=pos;i<this._connectArray.length;i++) {
-        if( !(this._connectArray[i].isFull()) )
-            break;
-    }
-    return i;
-};
-
-Balancer.prototype._next = function(connect, el) {
-    var self = this;
-    connect.addQuery(el.query, el.params, el.cb);
-    connect.start();
-    var bindFn = this._distribution.bind(self);
-
-    setImmediate(bindFn);
-};
-
 /*
     private method for regulation number of connections
 */
@@ -104,26 +88,25 @@ Balancer.prototype._equalize = function() {
     numberConnect = ( numberConnect < this._maxCountConnect ) ? numberConnect : this._maxCountConnect;
     numberConnect = numberConnect.toFixed();
     if(numberConnect > this._connectArray.length) {
-        this._status = 'regulation';
+        this._regulation = false;
         var cycle = function() {
             if(self._connectArray.length < numberConnect) {
                 self._addNewConnect(cycle);
             }   else {
-                self.emit('_ready');
+                self.emit('calibrated');
             }
         };
 
         this._addNewConnect(cycle);
     }   else if(numberConnect < this._connectArray.length) {
 
-        this._status = 'regulation';
+        this._regulation = false;
         while( this._connectArray.length  != numberConnect  ) {
-//            console.log(numberConnect, this._connectArray.length );
             var poppedConnect = this._connectArray.pop();
             var hashKey = +new Date() + Math.random();
             close(hashKey, poppedConnect);
         }
-        self.emit('_ready');
+        self.emit('calibrated');
     }
 
     function close(hashKey, poppedConnect) {
@@ -132,32 +115,58 @@ Balancer.prototype._equalize = function() {
         }   else {
             self._closedConnect[hashKey] = poppedConnect;
             self._closedConnect[hashKey].on('drain', function() {
-                if(self._closedConnect[hashKey]) {
-                    self._closedConnect[hashKey].close();
+                self._closedConnect[hashKey].close();
+                if(self._closedConnect[hashKey] === undefined) {
+                    console.log('not closed');
                 }
-                delete self._closedConnect[hashKey];
             });
         }
     }
 };
 
+Balancer.prototype._next = function(connect, el) {
+    var self = this;
+
+    connect.addQuery(el.query, el.params, el.cb);
+    connect.start();
+    var bindFn = this._distribution.bind(self);
+
+//    bindFn();
+    setImmediate(bindFn);
+};
+
+Balancer.prototype._cycle = function(pos) {
+    for (var i=pos;i<this._connectArray.length;i++) {
+        if( !(this._connectArray[i].isFull()) )
+            break;
+    }
+    return i;
+};
+
 Balancer.prototype._distribution = function() {
     var self = this;
 
-    if(this._taskArray.length>0 && this._status == 'ready') {
-        var el = this._taskArray.shift();
+    if(this._taskArray.length>0 && this._regulation ) {
         this._cursor = this._cycle(this._cursor);
-
         if(this._cursor<this._connectArray.length) {
             var connect = this._connectArray[this._cursor];
+            var el = this._taskArray.shift();
             this._next(connect, el);
             this._cursor++;
+
         }   else {
             this._cursor = this._cycle(0);
-
-            connect = this._connectArray[this._cursor];
-            this._next(connect, el);
-            this._cursor++;
+            if(this._cursor > this._maxCountConnect - 1) {
+                this._cursor = 0;
+                this._run = false;
+                this._buffered = true;
+            }   else {
+                this._cursor = (this._cursor == this._connectArray.length) ? this._cursor-1 : this._cursor;
+                connect = this._connectArray[this._cursor];
+                el = this._taskArray.shift();
+                this._next(connect, el);
+                this._cursor++;
+            }
         }
     }   else {
         this._run = false;
@@ -171,10 +180,15 @@ Balancer.prototype.addQuery = function(tube, query, params, cb) {
     var wrappCb = function() {
         self.activQuery--;
         cb.apply(this, arguments);
+        if(self._buffered && !self._run) {
+            self._run = true;
+            self._buffered = false;
+            self._distribution();
+        }
     };
 
     this._taskArray.push({ query: query, params: params, cb: wrappCb });
-    if(!this._run && this._status == 'ready') {
+    if(!this._run) {
         this._run = true;
         this._distribution();
     }
@@ -185,12 +199,12 @@ balancer.on('ready', function() {
 
     var y=0;
     var time = +new Date();
-    for(var i=0;i<10000; i++) {
+    for(var i=0;i<10200; i++) {
         balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
             if(err) console.log(err);
             console.log(y);
             y++;
-            if(y==10000) {
+            if(y==10200) {
                 console.log(balancer._connectArray.length);
                 console.log(+new Date()-time);
             }
