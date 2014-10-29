@@ -6,7 +6,7 @@ module.exports = Connect;
 function Connect(connString) {
     this._connString = connString;
     this._isRun = false;
-    this._maxQueryCount = 100;
+    this._maxQueryCount = 10;
     this._worked = false;
     this._queryCount = 0;
 
@@ -26,9 +26,9 @@ function Connect(connString) {
             return self.emit('error', err);
         }
 
+        self.emit('open');
         self._client = client;
         self._done = done;
-        self.emit('open');
     });
 }
 
@@ -48,12 +48,8 @@ Connect.prototype.isFull = function() {
 };
 
 Connect.prototype.close = function () {
-    if(this._done) {
-        this.emit('close');
-        this._done();
-    } else {
-        this.emit('error', new Error('connect is not active'));
-    }
+    this._client.end();
+    this.emit('close');
 };
 
 Connect.prototype.queryQueue = function () {

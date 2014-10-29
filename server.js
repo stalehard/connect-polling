@@ -6,20 +6,23 @@ var connString = util.format("pg://%s:%s@%s:%d/%s", conn.user, conn.password, co
 
 var GPSconnect = require('./pgclient');
 
-function Balancer(minCountConnect, maxCountConnect) {
+function Balancer(minCountConnect, maxCountConnect, connString) {
     var self = this;
 
     this._maxCountConnect = maxCountConnect;
     this._minCountConnect = minCountConnect;
+    this.connString = connString;
     this._connectArray = [];
     this._closedConnect = {};
     this._taskArray = [];
     this._run = false;
     this._regulation = true;
     this._buffered = true;
+    this._statusEqualize = false;
     this._init();
 
     this.on('calibrated', function() {
+        self._statusEqualize = false;
         self._regulation = true;
         if(!self._run) {
             self._run = true;
@@ -51,7 +54,8 @@ Balancer.prototype._init = function() {
 Balancer.prototype._addNewConnect = function(cb) {
     var self = this;
 
-    var connect = new GPSconnect(connString);
+    var connect = new GPSconnect(this.connString);
+
     connect.on('open', function() {
         self._connectArray.push(connect);
         cb();
@@ -65,7 +69,7 @@ Balancer.prototype._addNewConnect = function(cb) {
         self._equalize();
     });
 
-    connect.on('error', function() {
+    connect.on('error', function(err) {
         self._equalize();
     });
 
@@ -74,11 +78,33 @@ Balancer.prototype._addNewConnect = function(cb) {
     });
 };
 
+Balancer.prototype._removeConnect = function(cb) {
+    var self = this;
+
+    var poppedConnect = this._connectArray.pop();
+    var hashKey = +new Date() + Math.random();
+
+    if(poppedConnect.queryCount()==0) {
+        poppedConnect.close();
+        cb()
+    }   else {
+        this._closedConnect[hashKey] = poppedConnect;
+        this._closedConnect[hashKey].on('drain', function() {
+            self._closedConnect[hashKey].close();
+            cb();
+        });
+    }
+};
+
 /*
     private method for regulation number of connections
 */
+
 Balancer.prototype._equalize = function() {
     var self = this;
+    if(this._statusEqualize) {
+        return;
+    }
     /*
      Calculate for all or only take the value of the first element  (maxQueryCount) ?!
     */
@@ -87,8 +113,13 @@ Balancer.prototype._equalize = function() {
     numberConnect = ( numberConnect < this._minCountConnect ) ? this._minCountConnect : numberConnect;
     numberConnect = ( numberConnect < this._maxCountConnect ) ? numberConnect : this._maxCountConnect;
     numberConnect = numberConnect.toFixed();
+    if(numberConnect != this._connectArray.length) {
+        this._statusEqualize = true;
+    }
+
     if(numberConnect > this._connectArray.length) {
         this._regulation = false;
+
         var cycle = function() {
             if(self._connectArray.length < numberConnect) {
                 self._addNewConnect(cycle);
@@ -99,28 +130,16 @@ Balancer.prototype._equalize = function() {
 
         this._addNewConnect(cycle);
     }   else if(numberConnect < this._connectArray.length) {
-
         this._regulation = false;
-        while( this._connectArray.length  != numberConnect  ) {
-            var poppedConnect = this._connectArray.pop();
-            var hashKey = +new Date() + Math.random();
-            close(hashKey, poppedConnect);
-        }
-        self.emit('calibrated');
-    }
+        cycle = function() {
+            if(self._connectArray.length > numberConnect) {
+                self._removeConnect(cycle);
+            }   else {
+                self.emit('calibrated');
+            }
+        };
 
-    function close(hashKey, poppedConnect) {
-        if(poppedConnect.queryCount()==0) {
-            poppedConnect.close();
-        }   else {
-            self._closedConnect[hashKey] = poppedConnect;
-            self._closedConnect[hashKey].on('drain', function() {
-                self._closedConnect[hashKey].close();
-                if(self._closedConnect[hashKey] === undefined) {
-                    console.log('not closed');
-                }
-            });
-        }
+        this._removeConnect(cycle);
     }
 };
 
@@ -194,21 +213,45 @@ Balancer.prototype.addQuery = function(tube, query, params, cb) {
     }
 };
 
-var balancer = new Balancer(10,100);
+var balancer = new Balancer(10,50, connString);
 balancer.on('ready', function() {
+    run();
 
-    var y=0;
-    var time = +new Date();
-    for(var i=0;i<10200; i++) {
-        balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
-            if(err) console.log(err);
-            console.log(y);
-            y++;
-            if(y==10200) {
-                console.log(balancer._connectArray.length);
-                console.log(+new Date()-time);
-            }
-        });
+    function run() {
+        var y=0;
+        var time = +new Date();
+        for(var i=0;i<1200; i++) {
+            balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
+                if(err) console.log(err);
+                console.log(y);
+                y++;
+                if(y==1200) {
+                    console.log(balancer._connectArray.length);
+                    console.log(+new Date()-time, 1);
+                    run1();
+
+                }
+            });
+        }
+    }
+
+    function run1() {
+        setTimeout(function() {
+
+        }, 1000);
+        var y=0;
+        var time = +new Date();
+        for(var i=0;i<1200; i++) {
+            balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
+                if(err) console.log(err);
+                console.log(y);
+                y++;
+                if(y==1200) {
+                    console.log(balancer._connectArray.length);
+                    console.log(+new Date()-time, 2);
+                }
+            });
+        }
     }
 });
 
