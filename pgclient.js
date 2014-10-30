@@ -6,7 +6,7 @@ module.exports = Connect;
 function Connect(connString) {
     this._connString = connString;
     this._isRun = false;
-    this._maxQueryCount = 10;
+    this._maxQueryCount = 100;
     this._worked = false;
     this._queryCount = 0;
 

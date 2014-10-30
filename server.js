@@ -1,17 +1,16 @@
 var config = require('./config/config.json');
-var util = require('util');
 
 var conn =  config;
-var connString = util.format("pg://%s:%s@%s:%d/%s", conn.user, conn.password, conn.host, conn.port, conn.database);
+var connString = "pg://"+ conn.user +":"+ conn.password +"@"+ conn.host +":"+ conn.port +"/" + conn.database;
 
-var GPSconnect = require('./pgclient');
+var Connect = require('./pgclient');
 
 function Balancer(minCountConnect, maxCountConnect, connString) {
     var self = this;
 
+    this.connString = connString;
     this._maxCountConnect = maxCountConnect;
     this._minCountConnect = minCountConnect;
-    this.connString = connString;
     this._connectArray = [];
     this._closedConnect = {};
     this._taskArray = [];
@@ -24,6 +23,7 @@ function Balancer(minCountConnect, maxCountConnect, connString) {
     this.on('calibrated', function() {
         self._statusEqualize = false;
         self._regulation = true;
+
         if(!self._run) {
             self._run = true;
             self._distribution();
@@ -54,7 +54,7 @@ Balancer.prototype._init = function() {
 Balancer.prototype._addNewConnect = function(cb) {
     var self = this;
 
-    var connect = new GPSconnect(this.connString);
+    var connect = new Connect(this.connString);
 
     connect.on('open', function() {
         self._connectArray.push(connect);
