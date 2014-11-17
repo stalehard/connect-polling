@@ -5,6 +5,36 @@ var connString = "pg://"+ conn.user +":"+ conn.password +"@"+ conn.host +":"+ co
 
 var Connect = require('./pgclient');
 
+var pg = require('pg');
+pg.defaults.poolSize = 200;
+
+
+function pgclient() {
+    Connect.apply(this, arguments);
+}
+
+pgclient.prototype = Object.create(Connect.prototype);
+pgclient.prototype.open = function(open, cb) {
+    pg.connect(connString, function(err, client, done) {
+        if (err) {
+            return err;
+        }
+        open();
+        cb(client);
+    });
+};
+
+pgclient.prototype.close = function(close, client) {
+    client.end();
+    close();
+};
+
+pgclient.prototype.send = function(arg, client) {
+    client.query(arg[0], arg[1], arg[2]);
+};
+
+
+
 function Balancer(minCountConnect, maxCountConnect, connString) {
     var self = this;
 
@@ -54,7 +84,7 @@ Balancer.prototype._init = function() {
 Balancer.prototype._addNewConnect = function(cb) {
     var self = this;
 
-    var connect = new Connect(this.connString);
+    var connect = new pgclient(this.connString);
 
     connect.on('open', function() {
         self._connectArray.push(connect);
@@ -85,12 +115,12 @@ Balancer.prototype._removeConnect = function(cb) {
     var hashKey = +new Date() + Math.random();
 
     if(poppedConnect.queryCount()==0) {
-        poppedConnect.close();
+        poppedConnect.end();
         cb()
     }   else {
         this._closedConnect[hashKey] = poppedConnect;
         this._closedConnect[hashKey].on('drain', function() {
-            self._closedConnect[hashKey].close();
+            self._closedConnect[hashKey].end();
             cb();
         });
     }
@@ -143,14 +173,11 @@ Balancer.prototype._equalize = function() {
     }
 };
 
-Balancer.prototype._next = function(connect, el) {
-    var self = this;
+Balancer.prototype._next = function(index, el) {
+    this._connectArray[index].addQuery(el.arg, el.cb);
+    this._connectArray[index].start();
 
-    connect.addQuery(el.query, el.params, el.cb);
-    connect.start();
-    var bindFn = this._distribution.bind(self);
-
-//    bindFn();
+    var bindFn = this._distribution.bind(this);
     setImmediate(bindFn);
 };
 
@@ -159,6 +186,8 @@ Balancer.prototype._cycle = function(pos) {
         if( !(this._connectArray[i].isFull()) )
             break;
     }
+
+//    console.log(i);
     return i;
 };
 
@@ -168,9 +197,8 @@ Balancer.prototype._distribution = function() {
     if(this._taskArray.length>0 && this._regulation ) {
         this._cursor = this._cycle(this._cursor);
         if(this._cursor<this._connectArray.length) {
-            var connect = this._connectArray[this._cursor];
             var el = this._taskArray.shift();
-            this._next(connect, el);
+            this._next(this._cursor, el);
             this._cursor++;
 
         }   else {
@@ -181,9 +209,8 @@ Balancer.prototype._distribution = function() {
                 this._buffered = true;
             }   else {
                 this._cursor = (this._cursor == this._connectArray.length) ? this._cursor-1 : this._cursor;
-                connect = this._connectArray[this._cursor];
                 el = this._taskArray.shift();
-                this._next(connect, el);
+                this._next(this._cursor, el);
                 this._cursor++;
             }
         }
@@ -192,13 +219,14 @@ Balancer.prototype._distribution = function() {
     }
 };
 
-Balancer.prototype.addQuery = function(tube, query, params, cb) {
+Balancer.prototype.addQuery = function() {
     this.activQuery++;
     var self = this;
 
+    var cb = [].splice.apply(arguments, [arguments.length-1])[0];
     var wrappCb = function() {
         self.activQuery--;
-        cb.apply(this, arguments);
+        cb.apply(self, arguments);
         if(self._buffered && !self._run) {
             self._run = true;
             self._buffered = false;
@@ -206,12 +234,13 @@ Balancer.prototype.addQuery = function(tube, query, params, cb) {
         }
     };
 
-    this._taskArray.push({ query: query, params: params, cb: wrappCb });
+    this._taskArray.push({ arg: arguments, cb: wrappCb });
     if(!this._run) {
         this._run = true;
         this._distribution();
     }
 };
+
 
 var balancer = new Balancer(10,50, connString);
 balancer.on('ready', function() {
@@ -221,7 +250,7 @@ balancer.on('ready', function() {
         var y=0;
         var time = +new Date();
         for(var i=0;i<1200; i++) {
-            balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
+            balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
                 if(err) console.log(err);
                 console.log(y);
                 y++;
@@ -236,13 +265,11 @@ balancer.on('ready', function() {
     }
 
     function run1() {
-        setTimeout(function() {
 
-        }, 1000);
         var y=0;
         var time = +new Date();
         for(var i=0;i<1200; i++) {
-            balancer.addQuery('gps', 'select pg_sleep(1)', [], function(err, result) {
+            balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
                 if(err) console.log(err);
                 console.log(y);
                 y++;

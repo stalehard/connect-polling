@@ -1,6 +1,3 @@
-var pg = require('pg');
-pg.defaults.poolSize = 200;
-
 module.exports = Connect;
 
 function Connect(connString) {
@@ -9,6 +6,7 @@ function Connect(connString) {
     this._maxQueryCount = 100;
     this._worked = false;
     this._queryCount = 0;
+    this._setMax = false;
 
 
     var self = this;
@@ -20,15 +18,11 @@ function Connect(connString) {
         self._setMax = true;
     });
 
+    var wrapFn = this.emit;
+    var bindFn = wrapFn.bind(self, 'open');
 
-    pg.connect(this._connString, function(err, client, done) {
-        if (err) {
-            return self.emit('error', err);
-        }
-
-        self.emit('open');
-        self._client = client;
-        self._done = done;
+    this.open(bindFn, function(client) {
+        self.client = client;
     });
 }
 
@@ -47,32 +41,30 @@ Connect.prototype.isFull = function() {
     return this._setMax;
 };
 
-Connect.prototype.close = function () {
-    this._client.end();
-    this.emit('close');
+Connect.prototype.end = function () {
+    var self = this;
+    var wrapFn = this.emit;
+    var bindFn = wrapFn.bind(self, 'close');
+
+    this.close(bindFn, self.client);
 };
 
 Connect.prototype.queryQueue = function () {
     return this._arrayQuery;
 };
 
-Connect.prototype.addQuery = function (query, params, cb) {
-    if(typeof query !== 'string') {
-        return this.emit('error', new Error('not valid query'));
-    }
-
-    if( typeof params !== "object" || !(params instanceof Array) ) {
-        return this.emit('error', new Error('not valid argument'));
-    }
-
+Connect.prototype.addQuery = function (arg, cb) {
+    var self = this;
     this._queryCount++;
-    this._arrayQuery.push({ query: query, params: params, callback: cb });
+    this._arrayQuery.push({ arg: arg, callback: cb });
 
     if(this._queryCount > this._maxQueryCount) {
         this.emit('maxCount', 'in queue added too many requests, the waiting time increases');
     }
 
-    setImmediate(this._nextTick);
+    var bindFn = this._nextTick.bind(self);
+
+    setImmediate(bindFn);
 };
 
 Connect.prototype.maxQueryCount = function (count) {
@@ -89,7 +81,6 @@ Connect.prototype.queryCount = function () {
 
 Connect.prototype._nextTick = function() {
     var self = this;
-
     if(this._worked) {
         return;
     }
@@ -98,20 +89,20 @@ Connect.prototype._nextTick = function() {
         this._worked = true;
         var el = this._arrayQuery.shift();
 
-        this._client.query(el.query, el.params, function(err, result) {
+        var wrappCb = function(err, result) {
             self._queryCount--;
-            if(err) {
-                return el.callback(err);
-            }
-            el.callback(null, result);
 
+            el.callback.apply(this, arguments);
             if(self._queryCount==0) {
                 self.emit('drain');
                 self._setMax = false;
             }
+        };
 
-        })
+        el.arg[el.arg.length] = wrappCb;
+        this.send(el.arg, self.client);
     }
 
     this._worked = false;
 };
+
