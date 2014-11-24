@@ -4,12 +4,11 @@ pgClientClass
 A high level of abstraction, allows you to manage TCP connection pool
 
 
-API
-
+*API*
 
 First step
 
-First connect the class that provides an abstraction of a connection and is determined by three main methods for its work: OPEN, CLOSE, QUERY. 
+First connect the class that provides an abstraction of a connection and is determined by three main methods for its work: *OPEN*, *CLOSE*, *QUERY*. 
 
 ```
 var Connect = require('./client');
