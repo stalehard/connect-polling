@@ -34,5 +34,48 @@ Connect.prototype.send = function(arg, client) {
     client.query(arg[0], arg[1], arg[2]);
 };
 
+Balancer.import(Connect);
+
+var balancer = new Balancer(10,50, connString);
+balancer.on('ready', function() {
+    run();
+
+    function run() {
+        var y=0;
+        var time = +new Date();
+        for(var i=0;i<1200; i++) {
+            balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
+                if(err) console.log(err);
+                console.log(y);
+                y++;
+                if(y==1200) {
+                    console.log(balancer._connectArray.length);
+                    console.log(+new Date()-time, 1);
+                    run1();
+
+                }
+            });
+        }
+    }
+
+    function run1() {
+
+        var y=0;
+        var time = +new Date();
+        for(var i=0;i<1200; i++) {
+            balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
+                if(err) console.log(err);
+                console.log(y);
+                y++;
+                if(y==1200) {
+                    console.log(balancer._connectArray.length);
+                    console.log(+new Date()-time, 2);
+                }
+            });
+        }
+    }
+});
+
+
 ```
 
