@@ -1,7 +1,4 @@
 {
-    "name": "balancer",
-    "version": "0.1.2",
-    "dependencies": {
-        "pg": "3.4.1"
-    }
+    "name": "pooling client",
+    "version": "0.1.2"
 }
