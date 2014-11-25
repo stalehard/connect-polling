@@ -5,14 +5,14 @@ A high level of abstraction, allows you to manage TCP connection pool
 
 ###**API**
 
-######First step
+######**First step**
 
 First connect the class that provides an abstraction of a connection and is determined by three main methods for its work: **OPEN**, **CLOSE**, **QUERY**. 
 
 ```
 var Connect = require('./client');
 
-// OPEN method
+// define a method **OPEN**
 Connect.prototype.open = function(open, cb) {
     pg.connect(connString, function(err, client, done) {
         if (err) {
@@ -22,7 +22,10 @@ Connect.prototype.open = function(open, cb) {
         cb(client);
     });
 };
+```
 
+
+```
 // CLOSE method
 Connect.prototype.close = function(close, client) {
     client.end();
