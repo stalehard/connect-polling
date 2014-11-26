@@ -9,10 +9,12 @@ A high level of abstraction, allows you to manage TCP connection pool
 
 First connect the class that provides an abstraction of a connection and is determined by three main methods for its work: **OPEN**, **CLOSE**, **QUERY**. 
 
+Connect our library
 ```
 var Connect = require('./client');
-
-// define a method **OPEN**
+```
+define a method **OPEN**
+```
 Connect.prototype.open = function(open, cb) {
     pg.connect(connString, function(err, client, done) {
         if (err) {
@@ -23,7 +25,7 @@ Connect.prototype.open = function(open, cb) {
     });
 };
 ```
-
+**open**  is function triggers the event "open", cb is callback to be transmitted connection,  that he will be called in methods "send" and "close"
 
 ```
 // CLOSE method
