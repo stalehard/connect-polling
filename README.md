@@ -1,4 +1,4 @@
-pgClientClass
+connect-polling
 =============
 
 A high level of abstraction, allows you to manage TCP connection pool
@@ -29,19 +29,23 @@ Connect.prototype.open = function(open, cb) {
 
 Define a method **CLOSE**
 ```
-// CLOSE method
 Connect.prototype.close = function(close, client) {
     client.end();
     close();
 };
 ```
+**close** emits an event when the connect is closed, **client** is a exemplar induced in the method **OPEN**
 
+Define a method **QUERY**
 ```
-// QUERY method
 Connect.prototype.send = function(arg, client) {
     client.query(arg[0], arg[1], arg[2]);
 };
+```
 
+#####**Second step**
+
+```
 Balancer.import(Connect);
 
 var balancer = new Balancer(10,50, connString);
