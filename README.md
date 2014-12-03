@@ -13,7 +13,7 @@ Connect our library
 ```
 var Connect = require('./client');
 ```
-define a method **OPEN**
+Define a method **OPEN**
 ```
 Connect.prototype.open = function(open, cb) {
     pg.connect(connString, function(err, client, done) {
@@ -25,15 +25,18 @@ Connect.prototype.open = function(open, cb) {
     });
 };
 ```
-**open**  is function triggers the event "open", cb is callback to be transmitted connection,  that he will be called in methods "send" and "close"
+**open** emits an event when the connect is opened, **сb** need to call with argument - connect(client)
 
+Define a method **CLOSE**
 ```
 // CLOSE method
 Connect.prototype.close = function(close, client) {
     client.end();
     close();
 };
+```
 
+```
 // QUERY method
 Connect.prototype.send = function(arg, client) {
     client.query(arg[0], arg[1], arg[2]);
