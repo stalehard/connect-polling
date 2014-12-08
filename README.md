@@ -12,6 +12,17 @@ First connect the class that provides an abstraction of a connection and is dete
 Import our extended class ```Connect``` into pooling manager. It's all.
 
 ###**API**
+```
+var Balancer = require('./');
+
+var balancer = new Balancer(min, max);
+```
+**max** : the maximum number of resources to create at any given time (default is 1)
+**min** : the minimum number of resources always open (default is 1)
+
+```
+balancer.addQuery(arg[0], arg[1], ... arg[N],);
+```
 
 
 ###**Example**
@@ -98,7 +109,4 @@ balancer.on('ready', function() {
         }
     }
 });
-
-
 ```
-
