@@ -9,7 +9,7 @@ First connect the class that provides an abstraction of a connection and is dete
 
 #####**Second step**
 
-Import our extended class Connect into pooling manager. It's all.
+Import our extended class ```Connect``` into pooling manager. It's all.
 
 ###**API**
 
