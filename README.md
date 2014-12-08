@@ -21,10 +21,10 @@ var balancer = new Balancer(min, max);
 * **min** : the minimum number of resources always open (default is 1)
 
 ```
-balancer.addQuery(arg[0], arg[1], ... arg[N],);
+balancer.addQuery(arg0, arg1, ... argN,);
 ```
-```arg[0], arg[1], ... ,arg[N]``` - query arguments. Last argument (```arg[N]```) must be **callback** (This is rule).
-These arguments will be passed to the method **send**. And you must determine how to use them in this method:
+```arg0, arg1, ... ,argN``` - query arguments. Last argument (```argN```) must be **callback** (This is rule).
+These arguments will be passed to the method **send**. And you must determine how to use them in this method (They are available as elements of an array ```arg```):
 ```
 Connect.prototype.send = function(arg, client) {
     client.query(arg[0], arg[1], arg[2]);
