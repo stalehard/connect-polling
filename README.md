@@ -27,7 +27,7 @@ balancer.addQuery(arg0, arg1, ... argN,);
 These arguments will be passed to the method **send**. And you must determine how to use them in this method (They are available as elements of an array ```arg```):
 ```
 Connect.prototype.send = function(arg, client) {
-    client.query(arg[0], arg[1], arg[2]);
+    client.query(arg[0], arg[1], ..., arg[arg.length-1]);
 };
 ```
 
