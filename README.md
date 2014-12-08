@@ -16,7 +16,7 @@ Import our extended class ```Connect``` into pooling manager. It's all.
 
 ###**Example**
 
-Using our library for pool management to PostgreSQL. To open a tcp-socket used node-postgres client.
+Using our library for pool management to PostgreSQL. To open a tcp-socket used [node-postgres](https://github.com/brianc/node-postgres) client.
 
 Connect our library and PostgreSQL client
 ```
