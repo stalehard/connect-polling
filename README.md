@@ -23,7 +23,7 @@ var balancer = new Balancer(min, max);
 ```
 balancer.addQuery(arg[0], arg[1], ... arg[N],);
 ```
-arg[0], arg[1], ... ,arg[N] - query arguments. Last argument (arg[N]) must be **callback** (This is rule).
+```arg[0], arg[1], ... ,arg[N]``` - query arguments. Last argument (```arg[N]```) must be **callback** (This is rule).
 These arguments will be passed to the method **send**. And you must determine how to use them in this method:
 ```
 Connect.prototype.send = function(arg, client) {
@@ -78,41 +78,11 @@ Balancer.import(Connect);
 ```
 var balancer = new Balancer(10,50, connString);
 balancer.on('ready', function() {
-    run();
-
-    function run() {
-        var y=0;
-        var time = +new Date();
-        for(var i=0;i<1200; i++) {
-            balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
-                if(err) console.log(err);
-                console.log(y);
-                y++;
-                if(y==1200) {
-                    console.log(balancer._connectArray.length);
-                    console.log(+new Date()-time, 1);
-                    run1();
-
-                }
-            });
-        }
+    balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
+    if(err) {
+        return console.log(err);
     }
-
-    function run1() {
-
-        var y=0;
-        var time = +new Date();
-        for(var i=0;i<1200; i++) {
-            balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
-                if(err) console.log(err);
-                console.log(y);
-                y++;
-                if(y==1200) {
-                    console.log(balancer._connectArray.length);
-                    console.log(+new Date()-time, 2);
-                }
-            });
-        }
-    }
+    console.log(result);
+    });
 });
 ```
