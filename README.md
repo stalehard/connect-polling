@@ -89,3 +89,4 @@ balancer.on('ready', function() {
     });
 });
 ```
+(The MIT License)
