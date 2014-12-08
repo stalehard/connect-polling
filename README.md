@@ -74,7 +74,7 @@ Import our extended class ```Connect``` into pooling manager.
 ```
 Balancer.import(Connect);
 ```
-
+enjoy!
 ```
 var balancer = new Balancer(10,50, connString);
 balancer.on('ready', function() {
