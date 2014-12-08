@@ -24,7 +24,12 @@ var balancer = new Balancer(min, max);
 balancer.addQuery(arg[0], arg[1], ... arg[N],);
 ```
 arg[0], arg[1], ... ,arg[N] - query arguments. Last argument (arg[N]) must be **callback** (This is rule).
-These arguments will be passed to the method **QUERY**. And you must determine how to use them in this method.
+These arguments will be passed to the method **send**. And you must determine how to use them in this method:
+```
+Connect.prototype.send = function(arg, client) {
+    client.query(arg[0], arg[1], arg[2]);
+};
+```
 
 ###**Example**
 
