@@ -5,7 +5,7 @@ A high level of abstraction, allows you to manage TCP connection pool
 
 #####**First step**
 
-First connect the class that provides an abstraction of a connection and is determined by three main methods for its work: **OPEN**, **CLOSE**, **QUERY**. 
+First connect the class that provides an abstraction of a connection and is determined by three main methods for its work: **open**, **close**, **send**. 
 
 #####**Second step**
 
@@ -41,7 +41,7 @@ var Connect = require('./client');
 var Balancer = require('./');
 var pg = require('pg');
 ```
-Define a method **OPEN**
+Define a method **open**
 ```
 Connect.prototype.open = function(open, cb) {
     pg.connect(connString, function(err, client, done) {
@@ -55,21 +55,24 @@ Connect.prototype.open = function(open, cb) {
 ```
 **open** emits an event when the connect is opened, **сb** need to call with argument - connect(client)
 
-Define a method **CLOSE**
+Define a method **close**
 ```
 Connect.prototype.close = function(close, client) {
     client.end();
     close();
 };
 ```
-**close** emits an event when the connect is closed, **client** is a exemplar induced in the method **OPEN**
+**close** emits an event when the connect is closed, **client** is a exemplar induced in the method **open**
 
-Define a method **QUERY**
+Define a method **send**
 ```
 Connect.prototype.send = function(arg, client) {
     client.query(arg[0], arg[1], arg[2]);
 };
 ```
+```arg``` is an array of arguments , which is transmitted via the method **addQuery**. Determine how to use them.
+
+
 Import our extended class ```Connect``` into pooling manager.
 ```
 Balancer.import(Connect);
