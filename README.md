@@ -18,9 +18,10 @@ Import our extended class ```Connect``` into pooling manager. It's all.
 
 Using our library for pool management to PostgreSQL. To open, close and query a tcp-socket used [node-postgres](https://github.com/brianc/node-postgres) client.
 
-Connect our library and PostgreSQL client
+Connect our library (class ```Connect``` and  class ```Balancer```) and PostgreSQL client
 ```
 var Connect = require('./client');
+var Balancer = require('./');
 var pg = require('pg');
 ```
 Define a method **OPEN**
@@ -52,12 +53,12 @@ Connect.prototype.send = function(arg, client) {
     client.query(arg[0], arg[1], arg[2]);
 };
 ```
-
-
-
+Import our extended class ```Connect``` into pooling manager.
 ```
 Balancer.import(Connect);
+```
 
+```
 var balancer = new Balancer(10,50, connString);
 balancer.on('ready', function() {
     run();
