@@ -79,7 +79,7 @@ Balancer.import(Connect);
 ```
 enjoy!
 ```
-var balancer = new Balancer(10,50, connString);
+var balancer = new Balancer(10,50);
 balancer.on('ready', function() {
     balancer.addQuery('select pg_sleep(1)', [], function(err, result) {
     if(err) {
