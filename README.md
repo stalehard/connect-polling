@@ -17,13 +17,14 @@ var Balancer = require('./');
 
 var balancer = new Balancer(min, max);
 ```
-**max** : the maximum number of resources to create at any given time (default is 1)
-**min** : the minimum number of resources always open (default is 1)
+* **max** : the maximum number of resources to create at any given time (default is 1) 
+* **min** : the minimum number of resources always open (default is 1)
 
 ```
 balancer.addQuery(arg[0], arg[1], ... arg[N],);
 ```
-
+arg[0], arg[1], ... ,arg[N] - query arguments. Last argument (arg[N]) must be **callback** (This is rule).
+These arguments will be passed to the method **QUERY**. And you must determine how to use them in this method.
 
 ###**Example**
 
