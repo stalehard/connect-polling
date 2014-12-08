@@ -3,15 +3,25 @@ connect-polling
 
 A high level of abstraction, allows you to manage TCP connection pool
 
-###**API**
-
 #####**First step**
 
 First connect the class that provides an abstraction of a connection and is determined by three main methods for its work: **OPEN**, **CLOSE**, **QUERY**. 
 
-Connect our library
+#####**Second step**
+
+Import our extended class Connect into pooling manager. It's all.
+
+###**API**
+
+
+###**Example**
+
+Using our library for pool management to PostgreSQL. To open a tcp-socket used node-postgres client.
+
+Connect our library and PostgreSQL client
 ```
 var Connect = require('./client');
+var pg = require('pg');
 ```
 Define a method **OPEN**
 ```
@@ -43,7 +53,7 @@ Connect.prototype.send = function(arg, client) {
 };
 ```
 
-#####**Second step**
+
 
 ```
 Balancer.import(Connect);
