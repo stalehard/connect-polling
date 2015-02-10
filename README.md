@@ -48,12 +48,12 @@ Connect.prototype.open = function(open, cb) {
         if (err) {
             return err;
         }
-        open();
         cb(client);
+        open();
     });
 };
 ```
-**open** emits an event when the connect is opened, **сb** need to call with argument - connect(client)
+**сb** need to call with argument - connect(client), **open** emits an event when the connect is opened
 
 Define a method **close**
 ```
