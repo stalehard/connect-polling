@@ -13,7 +13,7 @@ Import our extended class ```Connect``` into pooling manager. It's all.
 
 ###**API**
 ```
-var Balancer = require('./');
+var Balancer = require('connect-polling');
 
 var balancer = new Balancer(min, max);
 ```
