@@ -17,8 +17,8 @@ var Balancer = require('connect-polling');
 
 var balancer = new Balancer(min, max);
 ```
-* **max** : the maximum number of resources to create at any given time (default is 1) 
-* **min** : the minimum number of resources always open (default is 1)
+* **max** : maximum number of open connections (default is 1)
+* **min** : minimum number of open connections (default is 1)
 
 ```
 balancer.addQuery(arg0, arg1, ... argN,);
@@ -37,8 +37,9 @@ Using our library for pool management to PostgreSQL. To open, close and query a 
 
 Connect our library (class ```Connect``` and  class ```Balancer```) and PostgreSQL client
 ```
-var Connect = require('./client');
-var Balancer = require('./');
+var Balancer = require('connect-polling');
+var Connect = Balancer.client
+
 var pg = require('pg');
 ```
 Define a method **open**
@@ -53,7 +54,7 @@ Connect.prototype.open = function(open, cb) {
     });
 };
 ```
-**сb** need to call with argument - connect(client), **open** emits an event when the connect is opened
+**сb** need call with argument - class client(connect) abstraction, e.g. cb(client), callback **open** emit "open" connect event 
 
 Define a method **close**
 ```
@@ -62,7 +63,7 @@ Connect.prototype.close = function(close, client) {
     close();
 };
 ```
-**close** emits an event when the connect is closed, **client** is a exemplar induced in the method **open**
+**close** emit "close" connect event, **client** is a exemplar class client(connect) abstraction transmited in the method **open** with callback
 
 Define a method **send**
 ```
